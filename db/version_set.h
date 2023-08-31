@@ -561,6 +561,10 @@ class VersionStorageInfo {
     return estimated_compaction_needed_bytes_;
   }
 
+  uint64_t estimated_compaction_needed_bytes_deeperlevel() const {
+    return estimated_compaction_needed_bytes_deeperlevel_;
+  }
+
   void TEST_set_estimated_compaction_needed_bytes(uint64_t v) {
     estimated_compaction_needed_bytes_ = v;
   }
@@ -718,6 +722,8 @@ class VersionStorageInfo {
   // Estimated bytes needed to be compacted until all levels' size is down to
   // target sizes.
   uint64_t estimated_compaction_needed_bytes_;
+
+  uint64_t estimated_compaction_needed_bytes_deeperlevel_;
 
   bool finalized_;
 

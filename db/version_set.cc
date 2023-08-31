@@ -2844,88 +2844,128 @@ int VersionStorageInfo::MaxOutputLevel(bool allow_ingest_behind) const {
 }
 
 void VersionStorageInfo::EstimateCompactionBytesNeeded(
-    const MutableCFOptions& mutable_cf_options) {
-  // Only implemented for level-based compaction
-  if (compaction_style_ != kCompactionStyleLevel) {
-    estimated_compaction_needed_bytes_ = 0;
-    return;
-  }
+        const MutableCFOptions& mutable_cf_options) {
+    // Only implemented for level-based compaction
+    if (compaction_style_ != kCompactionStyleLevel) {
+        estimated_compaction_needed_bytes_ = 0;
+        return;
+    }
 
-  // Start from Level 0, if level 0 qualifies compaction to level 1,
-  // we estimate the size of compaction.
-  // Then we move on to the next level and see whether it qualifies compaction
-  // to the next level. The size of the level is estimated as the actual size
-  // on the level plus the input bytes from the previous level if there is any.
-  // If it exceeds, take the exceeded bytes as compaction input and add the size
-  // of the compaction size to tatal size.
-  // We keep doing it to Level 2, 3, etc, until the last level and return the
-  // accumulated bytes.
+    // Start from Level 0, if level 0 qualifies compaction to level 1,
+    // we estimate the size of compaction.
+    // Then we move on to the next level and see whether it qualifies compaction
+    // to the next level. The size of the level is estimated as the actual size
+    // on the level plus the input bytes from the previous level if there is any.
+    // If it exceeds, take the exceeded bytes as compaction input and add the size
+    // of the compaction size to tatal size.
+    // We keep doing it to Level 2, 3, etc, until the last level and return the
+    // accumulated bytes.
 
-  uint64_t bytes_compact_to_next_level = 0;
-  uint64_t level_size = 0;
-  for (auto* f : files_[0]) {
-    level_size += f->fd.GetFileSize();
-  }
-  // Level 0
-  bool level0_compact_triggered = false;
-  if (static_cast<int>(files_[0].size()) >=
-          mutable_cf_options.level0_file_num_compaction_trigger ||
-      level_size >= mutable_cf_options.max_bytes_for_level_base) {
-    level0_compact_triggered = true;
-    estimated_compaction_needed_bytes_ = level_size;
-    bytes_compact_to_next_level = level_size;
-  } else {
-    estimated_compaction_needed_bytes_ = 0;
-  }
-
-  // Level 1 and up.
-  uint64_t bytes_next_level = 0;
-  for (int level = base_level(); level <= MaxInputLevel(); level++) {
-    level_size = 0;
-    if (bytes_next_level > 0) {
-#ifndef NDEBUG
-      uint64_t level_size2 = 0;
-      for (auto* f : files_[level]) {
-        level_size2 += f->fd.GetFileSize();
-      }
-      assert(level_size2 == bytes_next_level);
-#endif
-      level_size = bytes_next_level;
-      bytes_next_level = 0;
-    } else {
-      for (auto* f : files_[level]) {
+    uint64_t bytes_compact_to_next_level = 0;
+    uint64_t level_size = 0;
+    for (auto* f : files_[0]) {
         level_size += f->fd.GetFileSize();
-      }
     }
-    if (level == base_level() && level0_compact_triggered) {
-      // Add base level size to compaction if level0 compaction triggered.
-      estimated_compaction_needed_bytes_ += level_size;
+    // Level 0
+    bool level0_compact_triggered = false;
+    if (static_cast<int>(files_[0].size()) >=
+    mutable_cf_options.level0_file_num_compaction_trigger ||
+    level_size >= mutable_cf_options.max_bytes_for_level_base) {
+        level0_compact_triggered = true;
+        estimated_compaction_needed_bytes_ = level_size;
+        bytes_compact_to_next_level = level_size;
+    } else {
+        estimated_compaction_needed_bytes_ = 0;
     }
-    // Add size added by previous compaction
-    level_size += bytes_compact_to_next_level;
-    bytes_compact_to_next_level = 0;
-    uint64_t level_target = MaxBytesForLevel(level);
-    if (level_size > level_target) {
-      bytes_compact_to_next_level = level_size - level_target;
-      // Estimate the actual compaction fan-out ratio as size ratio between
-      // the two levels.
 
-      assert(bytes_next_level == 0);
-      if (level + 1 < num_levels_) {
-        for (auto* f : files_[level + 1]) {
-          bytes_next_level += f->fd.GetFileSize();
+    // Level 1 and up.
+    uint64_t bytes_next_level = 0;
+    for (int level = base_level(); level <= MaxInputLevel(); level++) {
+        level_size = 0;
+        if (bytes_next_level > 0) {
+#ifndef NDEBUG
+            uint64_t level_size2 = 0;
+            for (auto* f : files_[level]) {
+                level_size2 += f->fd.GetFileSize();
+            }
+            assert(level_size2 == bytes_next_level);
+#endif
+            level_size = bytes_next_level;
+            bytes_next_level = 0;
+        } else {
+            for (auto* f : files_[level]) {
+                level_size += f->fd.GetFileSize();
+            }
         }
-      }
-      if (bytes_next_level > 0) {
-        assert(level_size > 0);
-        estimated_compaction_needed_bytes_ += static_cast<uint64_t>(
-            static_cast<double>(bytes_compact_to_next_level) *
-            (static_cast<double>(bytes_next_level) /
-                 static_cast<double>(level_size) +
-             1));
-      }
+        if (level == base_level() && level0_compact_triggered) {
+            // Add base level size to compaction if level0 compaction triggered.
+            estimated_compaction_needed_bytes_ += level_size;
+        }
+        // Add size added by previous compaction
+        level_size += bytes_compact_to_next_level;
+        bytes_compact_to_next_level = 0;
+        uint64_t level_target = MaxBytesForLevel(level);
+        if (level_size > level_target) {
+            bytes_compact_to_next_level = level_size - level_target;
+            // Estimate the actual compaction fan-out ratio as size ratio between
+            // the two levels.
+
+            assert(bytes_next_level == 0);
+            if (level + 1 < num_levels_) {
+                for (auto* f : files_[level + 1]) {
+                    bytes_next_level += f->fd.GetFileSize();
+                }
+            }
+            if (bytes_next_level > 0) {
+                assert(level_size > 0);
+                estimated_compaction_needed_bytes_ += static_cast<uint64_t>(
+                        static_cast<double>(bytes_compact_to_next_level) *
+                        (static_cast<double>(bytes_next_level) /
+                        static_cast<double>(level_size) +
+                        1));
+            }
+        }
     }
-  }
+
+    // estimated_dlcompaction_needed_bytes, excluding L0
+    bytes_next_level = 0;
+    bytes_compact_to_next_level = 0;
+    estimated_compaction_needed_bytes_deeperlevel_ = 0;
+    for (int level = base_level(); level <= MaxInputLevel(); level++) {
+        level_size = 0;
+        if (bytes_next_level > 0) {
+            level_size = bytes_next_level;
+            bytes_next_level = 0;
+        } else {
+            for (auto* f : files_[level]) {
+                level_size += f->fd.GetFileSize();
+            }
+        }
+        // Add size added by previous compaction
+        level_size += bytes_compact_to_next_level;
+        bytes_compact_to_next_level = 0;
+        uint64_t level_target = MaxBytesForLevel(level);
+        if (level_size > level_target) {
+            bytes_compact_to_next_level = level_size - level_target;
+            // Estimate the actual compaction fan-out ratio as size ratio between
+            // the two levels.
+            assert(bytes_next_level == 0);
+            if (level + 1 < num_levels_) {
+                for (auto* f : files_[level + 1]) {
+                    bytes_next_level += f->fd.GetFileSize();
+                }
+            }
+            if (bytes_next_level > 0) {
+                assert(level_size > 0);
+                estimated_compaction_needed_bytes_deeperlevel_ += static_cast<uint64_t>(
+                        static_cast<double>(bytes_compact_to_next_level) *
+                        (static_cast<double>(bytes_next_level) /
+                        static_cast<double>(level_size) +
+                        1));
+            }
+        }
+    }
+
 }
 
 namespace {
