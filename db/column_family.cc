@@ -929,6 +929,14 @@ WriteStallCondition ColumnFamilyData::RecalculateWriteStallConditions(
                                     vstorage->l0_delay_trigger_count(),
                                     vstorage->initial_estimated_compaction_needed_bytes());
 
+    ROCKS_LOG_INFO(ioptions_.logger,"[%s] ADOCMaxBytesForBaseLevel: "
+                                    "InputRateControllerEnabled: false "
+                                    "level-0 files: %d "
+                                    "max bytes base_level "
+                                    "bytes %" PRIu64, name_.c_str(),
+                                    vstorage->l0_delay_trigger_count(),
+                                    vstorage->MaxBytesForLevel(1));
+
     auto write_stall_condition_and_cause = GetWriteStallConditionAndCause(
         imm()->NumNotFlushed(), vstorage->l0_delay_trigger_count(),
         vstorage->estimated_compaction_needed_bytes(), mutable_cf_options,
