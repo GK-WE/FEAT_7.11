@@ -129,6 +129,7 @@ struct MutableCFOptions {
         target_file_size_base(options.target_file_size_base),
         target_file_size_multiplier(options.target_file_size_multiplier),
         max_bytes_for_level_base(options.max_bytes_for_level_base),
+        initial_max_bytes_for_level_base(options.initial_max_bytes_for_level_base),
         max_bytes_for_level_multiplier(options.max_bytes_for_level_multiplier),
         ttl(options.ttl),
         periodic_compaction_seconds(options.periodic_compaction_seconds),
@@ -191,6 +192,7 @@ struct MutableCFOptions {
         target_file_size_base(0),
         target_file_size_multiplier(0),
         max_bytes_for_level_base(0),
+        initial_max_bytes_for_level_base(0),
         max_bytes_for_level_multiplier(0),
         ttl(0),
         periodic_compaction_seconds(0),
@@ -272,6 +274,7 @@ struct MutableCFOptions {
   uint64_t target_file_size_base;
   int target_file_size_multiplier;
   uint64_t max_bytes_for_level_base;
+  uint64_t initial_max_bytes_for_level_base;
   double max_bytes_for_level_multiplier;
   uint64_t ttl;
   uint64_t periodic_compaction_seconds;

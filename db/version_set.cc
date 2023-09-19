@@ -2926,6 +2926,74 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
       }
     }
   }
+
+  // initial estimated ec
+  bytes_compact_to_next_level = 0;
+  level_size = 0;
+  for (auto* f : files_[0]) {
+    level_size += f->fd.GetFileSize();
+  }
+  // Level 0
+  level0_compact_triggered = false;
+  if (static_cast<int>(files_[0].size()) >=
+  mutable_cf_options.level0_file_num_compaction_trigger ||
+  level_size >= mutable_cf_options.max_bytes_for_level_base) {
+    level0_compact_triggered = true;
+    estimated_compaction_needed_bytes_ = level_size;
+    bytes_compact_to_next_level = level_size;
+  } else {
+    estimated_compaction_needed_bytes_ = 0;
+  }
+
+  // Level 1 and up.
+  bytes_next_level = 0;
+  for (int level = base_level(); level <= MaxInputLevel(); level++) {
+    level_size = 0;
+    if (bytes_next_level > 0) {
+#ifndef NDEBUG
+      uint64_t level_size2 = 0;
+      for (auto* f : files_[level]) {
+        level_size2 += f->fd.GetFileSize();
+      }
+      assert(level_size2 == bytes_next_level);
+#endif
+      level_size = bytes_next_level;
+      bytes_next_level = 0;
+    } else {
+      for (auto* f : files_[level]) {
+        level_size += f->fd.GetFileSize();
+      }
+    }
+    if (level == base_level() && level0_compact_triggered) {
+      // Add base level size to compaction if level0 compaction triggered.
+      initial_estimated_compaction_needed_bytes_ += level_size;
+    }
+    // Add size added by previous compaction
+    level_size += bytes_compact_to_next_level;
+    bytes_compact_to_next_level = 0;
+    uint64_t level_target = InitialMaxBytesForLevel(level);
+    if (level_size > level_target) {
+      bytes_compact_to_next_level = level_size - level_target;
+      // Estimate the actual compaction fan-out ratio as size ratio between
+      // the two levels.
+
+      assert(bytes_next_level == 0);
+      if (level + 1 < num_levels_) {
+        for (auto* f : files_[level + 1]) {
+          bytes_next_level += f->fd.GetFileSize();
+        }
+      }
+      if (bytes_next_level > 0) {
+        assert(level_size > 0);
+        initial_estimated_compaction_needed_bytes_ += static_cast<uint64_t>(
+            static_cast<double>(bytes_compact_to_next_level) *
+            (static_cast<double>(bytes_next_level) /
+            static_cast<double>(level_size) +
+            1));
+      }
+    }
+  }
+
 }
 
 namespace {
@@ -4071,6 +4139,12 @@ uint64_t VersionStorageInfo::MaxBytesForLevel(int level) const {
   return level_max_bytes_[level];
 }
 
+uint64_t VersionStorageInfo::InitialMaxBytesForLevel(int level) const {
+  assert(level >= 0);
+  assert(level < static_cast<int>(initial_level_max_bytes_.size()));
+  return initial_level_max_bytes_[level];
+}
+
 void VersionStorageInfo::CalculateBaseBytes(const ImmutableOptions& ioptions,
                                             const MutableCFOptions& options) {
   // Special logic to set number of sorted runs.
@@ -4101,7 +4175,12 @@ void VersionStorageInfo::CalculateBaseBytes(const ImmutableOptions& ioptions,
             MultiplyCheckOverflow(level_max_bytes_[i - 1],
                                   options.max_bytes_for_level_multiplier),
             options.MaxBytesMultiplerAdditional(i - 1));
+        initial_level_max_bytes_[i] = MultiplyCheckOverflow(
+            MultiplyCheckOverflow(initial_level_max_bytes_[i - 1],
+                                  options.max_bytes_for_level_multiplier),
+                                  options.MaxBytesMultiplerAdditional(i - 1));
       } else {
+        initial_level_max_bytes_[i] = options.initial_max_bytes_for_level_base;
         level_max_bytes_[i] = options.max_bytes_for_level_base;
       }
     }

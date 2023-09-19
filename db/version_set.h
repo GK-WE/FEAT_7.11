@@ -554,11 +554,17 @@ class VersionStorageInfo {
   // Returns maximum total bytes of data on a given level.
   uint64_t MaxBytesForLevel(int level) const;
 
+  uint64_t InitialMaxBytesForLevel(int level) const;
+
   // Returns an estimate of the amount of live data in bytes.
   uint64_t EstimateLiveDataSize() const;
 
   uint64_t estimated_compaction_needed_bytes() const {
     return estimated_compaction_needed_bytes_;
+  }
+
+  uint64_t initial_estimated_compaction_needed_bytes() const {
+    return initial_estimated_compaction_needed_bytes_;
   }
 
   void TEST_set_estimated_compaction_needed_bytes(uint64_t v) {
@@ -605,6 +611,8 @@ class VersionStorageInfo {
                               // is guaranteed to be empty.
   // Per-level max bytes
   std::vector<uint64_t> level_max_bytes_;
+
+  std::vector<uint64_t> initial_level_max_bytes_;
 
   // A short brief metadata of files per level
   autovector<ROCKSDB_NAMESPACE::LevelFilesBrief> level_files_brief_;
@@ -718,6 +726,10 @@ class VersionStorageInfo {
   // Estimated bytes needed to be compacted until all levels' size is down to
   // target sizes.
   uint64_t estimated_compaction_needed_bytes_;
+
+  // Estimated bytes needed to be compacted until all levels' size is down to
+  // inital target sizes.
+  uint64_t initial_estimated_compaction_needed_bytes_;
 
   bool finalized_;
 
