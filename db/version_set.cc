@@ -2926,27 +2926,29 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
       }
     }
   }
+}
 
+void VersionStorageInfo::EstimatedInitalCompactionBytesNeeded(const MutableCFOptions& mutable_cf_options) {
+  uint64_t bytes_compact_to_next_level = 0;
+  uint64_t level_size = 0;
   // initial estimated ec
-  bytes_compact_to_next_level = 0;
-  level_size = 0;
   for (auto* f : files_[0]) {
     level_size += f->fd.GetFileSize();
   }
   // Level 0
-  level0_compact_triggered = false;
+  bool level0_compact_triggered = false;
   if (static_cast<int>(files_[0].size()) >=
   mutable_cf_options.level0_file_num_compaction_trigger ||
   level_size >= mutable_cf_options.max_bytes_for_level_base) {
     level0_compact_triggered = true;
-    estimated_compaction_needed_bytes_ = level_size;
+    initial_estimated_compaction_needed_bytes_ = level_size;
     bytes_compact_to_next_level = level_size;
   } else {
-    estimated_compaction_needed_bytes_ = 0;
+    initial_estimated_compaction_needed_bytes_ = 0;
   }
 
   // Level 1 and up.
-  bytes_next_level = 0;
+  uint64_t bytes_next_level = 0;
   for (int level = base_level(); level <= MaxInputLevel(); level++) {
     level_size = 0;
     if (bytes_next_level > 0) {
@@ -2993,7 +2995,6 @@ void VersionStorageInfo::EstimateCompactionBytesNeeded(
       }
     }
   }
-
 }
 
 namespace {
@@ -3205,6 +3206,7 @@ void VersionStorageInfo::ComputeCompactionScore(
   }
 
   EstimateCompactionBytesNeeded(mutable_cf_options);
+  EstimatedInitalCompactionBytesNeeded(mutable_cf_options);
 }
 
 void VersionStorageInfo::ComputeFilesMarkedForCompaction() {
